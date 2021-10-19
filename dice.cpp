@@ -224,15 +224,20 @@ class StrategyTree{
         map<string, StrategyTree*> sons;
         void cutSon(string move){sons.erase(move);};
     public:
-        StrategyTree(string move, StrategyTree *father);
+        StrategyTree(StrategyTree *father);
         void doNotCome();
+        void setMoves(vector<string> m){moves=m;};
         StrategyTree *addSon(string move);
+        void insertMove(string move){moves.push_back(move);};
         StrategyTree *getFather(){return father;};
         string prettyPrint();
+        vector<string> getMoves(){return moves;};
 };
 
 StrategyTree *StrategyTree::addSon(string move){
-    StrategyTree *son = new StrategyTree(move, this);
+    StrategyTree *son = new StrategyTree(this);
+    son->setMoves(moves);
+    son->insertMove(move);
     return son;
 }
 
@@ -246,8 +251,7 @@ string StrategyTree::prettyPrint(){
     return ret;
 }
 
-StrategyTree::StrategyTree(string move, StrategyTree *f){
-    moves.push_back(move);
+StrategyTree::StrategyTree(StrategyTree *f){
     father = f;
 }
 
@@ -295,7 +299,7 @@ public:
     Die *rotation(Die *d, int direction);
     void buildTree(int player, StrategyTree *tree, int depth);
     Die  *simulateMove(string move);
-    void revertMove(string move, Die *d);
+    void revertMove(string move, string currentPos, Die *d);
     void testGrid();
     void populate();
     void removeDice(int position);
@@ -304,9 +308,9 @@ public:
     int getScore(){return me->nbDice() - adv->nbDice();};
 };
 
-void Board::revertMove(string move, Die *d){
+void Board::revertMove(string move, string currentPos, Die *d){
     // Invert move:
-    string reverted = toString(d->getPosition()) + " ";
+    string reverted = currentPos + " ";
     string inv;
     for (char c: move.substr(3)){
         inv = oppo.at(c) + inv;
@@ -341,13 +345,20 @@ void Board::buildTree(int player, StrategyTree *tree, int depth){
         vector<string> moves = it.second;
         for (int i=0; i<moves.size();i++){
             string move = moves[i];
-            Die *d = simulateMove(move);
-            cout << "Making move: " << move << ", board is: " << endl;
-            showBoard();
+            string tmpPosition = move.substr(0,2);
+
+            Die *eaten = simulateMove(move);
             tree = tree->addSon(move);
             buildTree(player*-1 +1, tree, depth-1);
-            tree = tree->getFather();
-            revertMove(move, d);
+            cout << "Finished recursion for move stack: ";
+            for (string move: tree->getMoves()){
+                cout << move << " --> ";
+            }
+            cout << endl;
+            if (tree->getFather() != nullptr){
+                tree = tree->getFather();
+            }
+            revertMove(move, toString(d->getPosition()), eaten);
         }
     }
 
@@ -512,11 +523,6 @@ void Board::getMoves(int player, map<int, vector<string>> *allMoves){
         vector<string> moves;
         generateAllMoves(d, length, tree, &moves);
         allMoves->insert({d->getPosition(), moves});
-        cout << "For " << length << ", found the following valid moves: " << endl;
-        for (int i=0; i<moves.size(); i++){
-            cout << moves[i] << ", ";
-        }
-        cout << endl;
     }
 }
 
@@ -621,14 +627,14 @@ void Board::testGrid()
     adv->showDice();
 
     cout << "\nTesting reverting" << endl;
-    revertMove(move, eaten);
+    revertMove(move, toString(d->getPosition()), eaten);
     showBoard();
     adv->showDice();
 
     cout << "\nTesting Tree..." << endl;
     cout << "Current board export is:" << endl;
     cout << exportState() << endl;
-    StrategyTree *tree = new StrategyTree("", nullptr);
+    StrategyTree *tree = new StrategyTree(nullptr);
     buildTree(0, tree, 3);
     cout << tree->prettyPrint() << endl;
 }
