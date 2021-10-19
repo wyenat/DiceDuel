@@ -219,21 +219,39 @@ void MoveTree::addSon(int direction){
 
 class StrategyTree{
     private:
-        int score;
         vector<string> moves;
         StrategyTree *father;
         map<string, StrategyTree*> sons;
         void cutSon(string move){sons.erase(move);};
     public:
-        StrategyTree(string move, StrategyTree *father, int score);    
+        StrategyTree(string move, StrategyTree *father);
         void doNotCome();
+        StrategyTree *addSon(string move);
+        StrategyTree *getFather(){return father;};
+        string prettyPrint();
 };
 
-StrategyTree::StrategyTree(string move, StrategyTree *f, int s){
+StrategyTree *StrategyTree::addSon(string move){
+    StrategyTree *son = new StrategyTree(move, this);
+    return son;
+}
+
+string StrategyTree::prettyPrint(){
+    string ret = "";
+    ret += "\n|-";
+    for (auto it: sons){
+        ret+= it.first;
+        ret+= it.second->prettyPrint();
+    }
+    return ret;
+}
+
+StrategyTree::StrategyTree(string move, StrategyTree *f){
     moves.push_back(move);
     father = f;
-    score = s;
 }
+
+StrategyTree *addSon();
 
 void StrategyTree::doNotCome(){
     if (father!=nullptr){
@@ -281,8 +299,9 @@ public:
     void testGrid();
     void populate();
     void removeDice(int position);
-    void getMoves(int player, map<int, vector<string>> allMoves);
+    void getMoves(int player, map<int, vector<string>> *allMoves);
     int isOver();
+    int getScore(){return me->nbDice() - adv->nbDice();};
 };
 
 void Board::revertMove(string move, Die *d){
@@ -315,7 +334,7 @@ void Board::buildTree(int player, StrategyTree *tree, int depth){
         return;
     }
     map<int, vector<string>> allMoves;
-    getMoves(player, allMoves);
+    getMoves(player, &allMoves);
     for (auto it: allMoves){
         int position = it.first;
         Die *d= board.at(position);
@@ -323,7 +342,11 @@ void Board::buildTree(int player, StrategyTree *tree, int depth){
         for (int i=0; i<moves.size();i++){
             string move = moves[i];
             Die *d = simulateMove(move);
+            cout << "Making move: " << move << ", board is: " << endl;
+            showBoard();
+            tree = tree->addSon(move);
             buildTree(player*-1 +1, tree, depth-1);
+            tree = tree->getFather();
             revertMove(move, d);
         }
     }
@@ -474,7 +497,7 @@ void Board::generateAllMoves(Die *d, int length, MoveTree *tree, vector<string> 
     }
 }
 
-void Board::getMoves(int player, map<int, vector<string>> allMoves){
+void Board::getMoves(int player, map<int, vector<string>> *allMoves){
     map<int, Die *> iter;
     if (player==0){
         iter = me->getDice();
@@ -488,31 +511,22 @@ void Board::getMoves(int player, map<int, vector<string>> allMoves){
         MoveTree *tree = new MoveTree(toString(d->getPosition()) + " ", d->getPosition());
         vector<string> moves;
         generateAllMoves(d, length, tree, &moves);
-        allMoves[d->getPosition()] = moves;
-        // cout << "For " << length << ", found the following valid moves: " << endl;
-        // for (int i=0; i<moves.size(); i++){
-        //     cout << toString(d->getPosition()) <<moves[i] << ",  ";
-        // }
-        // cout << endl;
+        allMoves->insert({d->getPosition(), moves});
+        cout << "For " << length << ", found the following valid moves: " << endl;
+        for (int i=0; i<moves.size(); i++){
+            cout << moves[i] << ", ";
+        }
+        cout << endl;
     }
 }
 
 void Board::populate()
 {
     Die *d;
-    for (int i = 0; i < 64; i++)
-    {
-        if (i < 3)
-        {
-            d = new Die(i, 0, 6, 5, 1);
-            this->addDice(d);
-        }
-        else if (i >= 61)
-        {
-            d = new Die(i, 1, 6, 5, 1);
-            this->addDice(d);
-        }
-    }
+    d = new Die(1, 0, 6, 5, 1);
+    this->addDice(d);
+    d = new Die(61, 1, 6, 5, 1);
+    this->addDice(d);
 }
 
 int Board::toNumber(string position)
@@ -614,8 +628,9 @@ void Board::testGrid()
     cout << "\nTesting Tree..." << endl;
     cout << "Current board export is:" << endl;
     cout << exportState() << endl;
-    
-    cout << "\nTesting moves..." << endl;
+    StrategyTree *tree = new StrategyTree("", nullptr);
+    buildTree(0, tree, 3);
+    cout << tree->prettyPrint() << endl;
 }
 
 using namespace std;
