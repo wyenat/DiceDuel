@@ -14,6 +14,10 @@
 #include <map>
 #include <set>
 #include <utility>
+#include <chrono>
+#include <unistd.h>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 
@@ -140,8 +144,8 @@ public:
     void addDie(Die *d) { dice.insert(make_pair(d->getUniqueID(), d)); };
     void removeDie(int uniqueID) { dice.erase(uniqueID); };
     void showDice();
-    int nbDice(){return dice.size();};
-    map<int, Die *> getDice(){return dice;};
+    int nbDice() { return dice.size(); };
+    map<int, Die *> getDice() { return dice; };
 };
 
 void Player::showDice()
@@ -153,113 +157,227 @@ void Player::showDice()
     }
 }
 
-class MoveTree{
-    private:
-        string current;
-        set<int> visited;
-        map<string,MoveTree*> sons;
-        int position;
-    public:
-        void setVisited(set<int> v){visited=v;};
-        map<string,MoveTree*> getSons(){return sons;};
-        string getCurrent(){return current;};
-        int getPosition(){return position;};
-        set<int> getVisited(){return visited;};
-        MoveTree(string move, int pos) {current=move; position=pos;};
-        void visit(int pos){visited.insert(pos);};
-        void addSon(int direction);
+class MoveTree
+{
+private:
+    string current;
+    set<int> visited;
+    map<string, MoveTree *> sons;
+    int position;
+
+public:
+    void setVisited(set<int> v) { visited = v; };
+    map<string, MoveTree *> getSons() { return sons; };
+    string getCurrent() { return current; };
+    int getPosition() { return position; };
+    set<int> getVisited() { return visited; };
+    MoveTree(string move, int pos)
+    {
+        current = move;
+        position = pos;
+    };
+    void visit(int pos) { visited.insert(pos); };
+    void addSon(int direction);
 };
 
-void MoveTree::addSon(int direction){
+void MoveTree::addSon(int direction)
+{
     string cur = current;
     int pos = position;
     switch (direction)
     {
     case UP:
-        if (visited.find(pos-8) == visited.end()){
+        if (visited.find(pos - 8) == visited.end())
+        {
             cur += "U";
-            MoveTree *t = new MoveTree(cur, pos-8);
+            MoveTree *t = new MoveTree(cur, pos - 8);
             t->setVisited(visited);
-            t->visit(pos-8);
-            sons[cur]=t;
+            t->visit(pos - 8);
+            sons[cur] = t;
         }
         break;
     case DOWN:
-        if (visited.find(pos+8) == visited.end()){
-                cur += "D";
-                MoveTree *t = new MoveTree(cur, pos+8);
-                t->setVisited(visited);
-                t->visit(pos+8);
-                sons[cur]=t;
+        if (visited.find(pos + 8) == visited.end())
+        {
+            cur += "D";
+            MoveTree *t = new MoveTree(cur, pos + 8);
+            t->setVisited(visited);
+            t->visit(pos + 8);
+            sons[cur] = t;
         }
         break;
     case RIGHT:
-        if (visited.find(pos+1) == visited.end()){
-                cur += "R";
-                MoveTree *t = new MoveTree(cur, pos+1);
-                t->setVisited(visited);
-                t->visit(pos+1);
-                sons[cur]=t;
+        if (visited.find(pos + 1) == visited.end())
+        {
+            cur += "R";
+            MoveTree *t = new MoveTree(cur, pos + 1);
+            t->setVisited(visited);
+            t->visit(pos + 1);
+            sons[cur] = t;
         }
         break;
     case LEFT:
-        if (visited.find(pos-1) == visited.end()){
-                cur += "L";
-                MoveTree *t = new MoveTree(cur, pos-1);
-                t->setVisited(visited);
-                t->visit(pos-1);
-                sons[cur]=t;
+        if (visited.find(pos - 1) == visited.end())
+        {
+            cur += "L";
+            MoveTree *t = new MoveTree(cur, pos - 1);
+            t->setVisited(visited);
+            t->visit(pos - 1);
+            sons[cur] = t;
         }
         break;
     default:
         break;
     }
-    
 }
 
-class StrategyTree{
-    private:
-        vector<string> moves;
-        StrategyTree *father;
-        map<string, StrategyTree*> sons;
-        void cutSon(string move){sons.erase(move);};
-    public:
-        StrategyTree(StrategyTree *father);
-        void doNotCome();
-        void setMoves(vector<string> m){moves=m;};
-        StrategyTree *addSon(string move);
-        void insertMove(string move){moves.push_back(move);};
-        StrategyTree *getFather(){return father;};
-        string prettyPrint();
-        vector<string> getMoves(){return moves;};
+class StrategyTree
+{
+private:
+    vector<string> moves;
+    StrategyTree *father;
+    map<string, StrategyTree *> sons;
+    void cutSon(string move) { sons.erase(move); };
+    bool forbiden = false;
+    int winner = -1;
+    int score = 0;
+
+public:
+    void forbid() { forbiden = true; };
+    void incrementScore(int inc) { score += inc; };
+    void setOnlySon(string move);
+    StrategyTree *getBest();
+    string getStrMoves();
+    void setWinner(int w);
+    bool getForbiden() { return forbiden; };
+    StrategyTree(StrategyTree *father);
+    void doNotCome();
+    void setMoves(vector<string> m) { moves = m; };
+    StrategyTree *addSon(string move);
+    void insertMove(string move) { moves.push_back(move); };
+    StrategyTree *getFather() { return father; };
+    string prettyPrint(int depth);
+    vector<string> getMoves() { return moves; };
 };
 
-StrategyTree *StrategyTree::addSon(string move){
-    StrategyTree *son = new StrategyTree(this);
-    son->setMoves(moves);
-    son->insertMove(move);
-    return son;
+StrategyTree *StrategyTree::getBest()
+{
+    int best = -1000000;
+    string bestStr = "";
+    cout << "Looking into the " << sons.size() << " sons." << endl;
+    for (auto it : sons)
+    {
+        if (it.second->score > best)
+        {
+            best = it.second->score;
+            bestStr = it.first;
+        }
+    }
+    cout << "Best move was " << bestStr << " with " << best << endl;
+    return sons.at(bestStr);
 }
 
-string StrategyTree::prettyPrint(){
+void StrategyTree::setWinner(int w)
+{
+    // Mark this branch as won.
+    winner = w;
+
+    // The idea is to propagate this winner to the upper branch, so the player can make a winning move
+    // And propagate to the 2 x upper branch, so the player can avoid a losing move.
+    // Exemple:
+    // Export is D70531F11321, P0 plays first
+    // |-D7 DDDDD
+    // 	|-F1 LLU   -> P1 WON
+    // So P0 must know it must not play D7 DDDDD because it's a loosing move.
+    // The idea is to set the score to this branch to -10000, garanteeing it won't be picked.
+    // F1 LLU is the only son of that branch, because it's a win, so P1 doesn't need to bother with a score.
+
+    if (father != nullptr)
+    {
+        if (father->father != nullptr)
+        {
+            //cout << "For " << ge < tStrMoves() << "'s grandpa, score is " << father->father->score << endl;
+            if (w == 0)
+            {
+                father->incrementScore(-10000);
+                father->father->incrementScore(1);
+            }
+            else if (w == 1)
+            {
+                father->incrementScore(10000);
+                father->father->incrementScore(-1);
+            }
+        }
+    }
+}
+
+void StrategyTree::setOnlySon(string move)
+{
+    // cout << "Called set only son with move " << move << " for tree ending with " << getStrMoves() << endl;
+    sons.clear();
+    addSon(move);
+    // cout << "Now, " << getStrMoves() << " only has " << sons.size() << " son." << endl;
+};
+
+string StrategyTree::getStrMoves()
+{
     string ret = "";
-    ret += "\n|-";
-    for (auto it: sons){
-        ret+= it.first;
-        ret+= it.second->prettyPrint();
+    for (string m : getMoves())
+    {
+        ret += m + " --> ";
     }
     return ret;
 }
 
-StrategyTree::StrategyTree(StrategyTree *f){
+StrategyTree *StrategyTree::addSon(string move)
+{
+    StrategyTree *son = new StrategyTree(this);
+    son->setMoves(moves);
+    son->insertMove(move);
+    sons[move] = son;
+    return son;
+}
+
+string StrategyTree::prettyPrint(int depth)
+{
+    string ret = "";
+    if (moves.size() == 0)
+    {
+        ret += "Origine";
+    }
+    for (auto it : sons)
+    {
+        string tabs(depth, '\t');
+        ret += "\n" + tabs + "|-" + it.first;
+        if (forbiden)
+        {
+            ret += " (F) ";
+        }
+        if (winner == 0)
+        {
+            ret += " (W) ";
+        }
+        else if (winner == 1)
+        {
+            ret += " (L) ";
+        }
+        ret += " [" + to_string(score) + "] ";
+        ret += it.second->prettyPrint(depth + 1);
+    }
+    return ret;
+}
+
+StrategyTree::StrategyTree(StrategyTree *f)
+{
     father = f;
 }
 
-StrategyTree *addSon();
-
-void StrategyTree::doNotCome(){
-    if (father!=nullptr){
-        if (father->father != nullptr){
+void StrategyTree::doNotCome()
+{
+    if (father != nullptr)
+    {
+        if (father->father != nullptr)
+        {
             father->father->cutSon(moves.at(moves.size() - 2));
         }
     }
@@ -273,8 +391,8 @@ private:
     Player *adv;
     void getNeighbours(int position, int neighbours[4]);
     void addDice(Die *d);
-    void generateAllMoves(Die *d, int length, MoveTree *tree,  vector<string> *moves);
-    map<char,string> oppo; 
+    void generateAllMoves(Die *d, int length, MoveTree *tree, vector<string> *moves);
+    map<char, string> oppo;
     map<char, int> direc;
 
 public:
@@ -282,14 +400,14 @@ public:
     {
         me = new Player();
         adv = new Player();
-        oppo['U']="D";
-        oppo['D']="U";
-        oppo['L']="R";
-        oppo['R']="L";
-        direc['U']=UP;
-        direc['D']=DOWN;
-        direc['L']=LEFT;
-        direc['R']=RIGHT;
+        oppo['U'] = "D";
+        oppo['D'] = "U";
+        oppo['L'] = "R";
+        oppo['R'] = "L";
+        direc['U'] = UP;
+        direc['D'] = DOWN;
+        direc['L'] = LEFT;
+        direc['R'] = RIGHT;
     }
     Board(string state);
     string exportState();
@@ -298,70 +416,108 @@ public:
     string toString(int position);
     Die *rotation(Die *d, int direction);
     void buildTree(int player, StrategyTree *tree, int depth);
-    Die  *simulateMove(string move);
+    Die *simulateMove(string move);
     void revertMove(string move, string currentPos, Die *d);
     void testGrid();
     void populate();
     void removeDice(int position);
     void getMoves(int player, map<int, vector<string>> *allMoves);
     int isOver();
-    int getScore(){return me->nbDice() - adv->nbDice();};
+    void testManyTurns();
+    int getScore() { return me->nbDice() - adv->nbDice(); };
 };
 
-void Board::revertMove(string move, string currentPos, Die *d){
+void Board::revertMove(string move, string currentPos, Die *d)
+{
     // Invert move:
     string reverted = currentPos + " ";
     string inv;
-    for (char c: move.substr(3)){
+    for (char c : move.substr(3))
+    {
         inv = oppo.at(c) + inv;
     }
     simulateMove(reverted + inv);
 
-    if (d==nullptr){
+    if (d == nullptr)
+    {
         return;
     }
 
     addDice(d);
-} 
+}
 
-Die *Board::simulateMove(string move){
-    Die *toMove = board.at(toNumber(move.substr(0,2)));
+Die *Board::simulateMove(string move)
+{
+    Die *toMove = board.at(toNumber(move.substr(0, 2)));
     Die *deleted;
-    for (char m: move.substr(3)){
+    for (char m : move.substr(3))
+    {
         deleted = rotation(toMove, direc.at(m));
     }
     return deleted;
 }
 
-void Board::buildTree(int player, StrategyTree *tree, int depth){
-    if (depth==0){
+void Board::buildTree(int player, StrategyTree *tree, int depth)
+{
+    if (depth == 0)
+    {
         return;
     }
     map<int, vector<string>> allMoves;
     getMoves(player, &allMoves);
-    for (auto it: allMoves){
+    for (auto it : allMoves)
+    {
         int position = it.first;
-        Die *d= board.at(position);
+        Die *d = board.at(position);
         vector<string> moves = it.second;
-        for (int i=0; i<moves.size();i++){
+        for (int i = 0; i < moves.size(); i++)
+        {
             string move = moves[i];
-            string tmpPosition = move.substr(0,2);
+            string tmpPosition = move.substr(0, 2);
 
             Die *eaten = simulateMove(move);
-            tree = tree->addSon(move);
-            buildTree(player*-1 +1, tree, depth-1);
-            cout << "Finished recursion for move stack: ";
-            for (string move: tree->getMoves()){
-                cout << move << " --> ";
+            int over = isOver();
+            tree->setWinner(over);
+
+            // Case 1 : Most common, nobody lost or won with this move.
+            // Continue simulating further the branch.
+            if (over == -1)
+            {
+                tree = tree->addSon(move);
+                buildTree(player * -1 + 1, tree, depth - 1);
             }
-            cout << endl;
-            if (tree->getFather() != nullptr){
+
+            // Case 2 : With this move, the opponent won.
+            // Because he can win, I have to make sure he cannot get the opportunity to play this move,
+            // so I do not play the move leading to this position.
+            else if (over == 1)
+            {
+                tree->forbid();
+                tree->setOnlySon(move);
+                revertMove(move, toString(d->getPosition()), eaten);
+                break;
+            }
+
+            // Case 3: With this move, I won.
+            // No need to explore further, if we arrive to this position I will play this and win.
+            // Because this game is symetric, the opponent doesn't want me to arrive to this state either,
+            // and won't play the move to come until here.
+            else
+            {
+                // No need to build further this branch, if it gets to this point
+                // the player wins.
+                tree->forbid();
+                tree->setOnlySon(move);
+                revertMove(move, toString(d->getPosition()), eaten);
+                break;
+            }
+            if (tree->getFather() != nullptr)
+            {
                 tree = tree->getFather();
             }
             revertMove(move, toString(d->getPosition()), eaten);
         }
     }
-
 }
 
 Board::Board(string state)
@@ -404,18 +560,22 @@ void Board::removeDice(int position)
     }
 }
 
-int Board::isOver(){
-    if (me->nbDice()==0){
-        return -1;
-    } else if (adv->nbDice()==0){
+int Board::isOver()
+{
+    if (me->nbDice() == 0)
+    {
         return 1;
-    } 
-    return 0;
+    }
+    else if (adv->nbDice() == 0)
+    {
+        return 0;
+    }
+    return -1;
 }
 
 void Board::addDice(Die *d)
 {
-    cout << "Adding dice for " << d->getOwner() << " at " << toString(d->getPosition()) << endl;
+    // cout << "Adding dice for " << d->getOwner() << " at " << toString(d->getPosition()) << endl;
     this->board[d->getPosition()] = d;
     if (d->getOwner() == 0)
     {
@@ -458,67 +618,93 @@ Die *Board::rotation(Die *d, int direction)
     return nullptr;
 }
 
-void Board::getNeighbours(int position, int neighbours[4]){
-    if (position-8 < 0){
-        neighbours[UP] =2;
-    } else if (board.find(position-8)!=board.end()){
-        neighbours[UP] = board.at(position-8)->getOwner();
+void Board::getNeighbours(int position, int neighbours[4])
+{
+    if (position - 8 < 0)
+    {
+        neighbours[UP] = 2;
+    }
+    else if (board.find(position - 8) != board.end())
+    {
+        neighbours[UP] = board.at(position - 8)->getOwner();
     }
 
-    if (position+8 > 63){
-        neighbours[DOWN] =2;
-    } else if (board.find(position+8)!=board.end()){
-        neighbours[DOWN] = board.at(position+8)->getOwner();
+    if (position + 8 > 63)
+    {
+        neighbours[DOWN] = 2;
+    }
+    else if (board.find(position + 8) != board.end())
+    {
+        neighbours[DOWN] = board.at(position + 8)->getOwner();
     }
 
-    if (position%8==7){
-        neighbours[RIGHT] =2;
-    } else if (board.find(position+1)!=board.end()){
-        neighbours[RIGHT] = board.at(position+1)->getOwner();
+    if (position % 8 == 7)
+    {
+        neighbours[RIGHT] = 2;
+    }
+    else if (board.find(position + 1) != board.end())
+    {
+        neighbours[RIGHT] = board.at(position + 1)->getOwner();
     }
 
-     if (position%8 == 0){
-        neighbours[LEFT] =2;
-    } else if (board.find(position-1)!=board.end()){
-        neighbours[LEFT] = board.at(position-1)->getOwner();
+    if (position % 8 == 0)
+    {
+        neighbours[LEFT] = 2;
+    }
+    else if (board.find(position - 1) != board.end())
+    {
+        neighbours[LEFT] = board.at(position - 1)->getOwner();
     }
 }
 
-void Board::generateAllMoves(Die *d, int length, MoveTree *tree, vector<string> *moves){
-    if (length == 0){
+void Board::generateAllMoves(Die *d, int length, MoveTree *tree, vector<string> *moves)
+{
+    if (length == 0)
+    {
         moves->push_back(tree->getCurrent());
         set<int> v = tree->getVisited();
         return;
     }
-    int neighbours[4] = {-1,-1,-1,-1};
+    int neighbours[4] = {-1, -1, -1, -1};
     int player = d->getOwner();
     getNeighbours(tree->getPosition(), neighbours);
-    for (int dir=0; dir<4; dir++){
-        if (neighbours[dir]==-1){
+    for (int dir = 0; dir < 4; dir++)
+    {
+        if (neighbours[dir] == -1)
+        {
             tree->addSon(dir);
-        } else if (length==1){
-            if (neighbours[dir]!=2 and neighbours[dir]!=player){
-                tree ->addSon(dir);
+        }
+        else if (length == 1)
+        {
+            if (neighbours[dir] != 2 and neighbours[dir] != player)
+            {
+                tree->addSon(dir);
             }
         }
     }
 
-    for (auto it: tree->getSons()){
-        generateAllMoves(d, length-1, it.second, moves);
+    for (auto it : tree->getSons())
+    {
+        generateAllMoves(d, length - 1, it.second, moves);
     }
 }
 
-void Board::getMoves(int player, map<int, vector<string>> *allMoves){
+void Board::getMoves(int player, map<int, vector<string>> *allMoves)
+{
     map<int, Die *> iter;
-    if (player==0){
+    if (player == 0)
+    {
         iter = me->getDice();
-    } else {
+    }
+    else
+    {
         iter = adv->getDice();
     }
-    for (auto it: iter){
+    for (auto it : iter)
+    {
         Die *d = it.second;
         int length = d->getFaceup();
-        cout << "Starting tree for dice at " << to_string(d->getPosition()) << endl; 
+        // cout << "Starting tree for dice at " << to_string(d->getPosition()) << endl;
         MoveTree *tree = new MoveTree(toString(d->getPosition()) + " ", d->getPosition());
         vector<string> moves;
         generateAllMoves(d, length, tree, &moves);
@@ -529,9 +715,9 @@ void Board::getMoves(int player, map<int, vector<string>> *allMoves){
 void Board::populate()
 {
     Die *d;
-    d = new Die(1, 0, 6, 5, 1);
+    d = new Die(11, 0, 5, 3, 1);
     this->addDice(d);
-    d = new Die(61, 1, 6, 5, 1);
+    d = new Die(61, 1, 3, 2, 1);
     this->addDice(d);
 }
 
@@ -592,15 +778,9 @@ void Board::testGrid()
     showBoard();
 
     cout << "\nTesting rotation..." << endl;
-    Die *d = this->board[1];
+    Die *d = this->board[11];
     cout << "\nMoving DOWN" << endl;
     rotation(d, DOWN);
-    showBoard();
-    cout << "\nMoving DOWN" << endl;
-    rotation(d, DOWN);
-    showBoard();
-    cout << "\nMoving RIGHT" << endl;
-    rotation(d, RIGHT);
     showBoard();
     cout << "\nMoving RIGHT" << endl;
     rotation(d, RIGHT);
@@ -618,10 +798,10 @@ void Board::testGrid()
     cout << "Adv's dice" << endl;
     adv->showDice();
     cout << "Eating adv's dice" << endl;
-    d = this->board[10];
-    string move = toString(d->getPosition()) + " DDDRDRRDD";
+    d = this->board[11];
+    string move = toString(d->getPosition()) + " DDDDDDRR";
     cout << "Doing move " << move << endl;
-    Die *eaten = simulateMove(toString(d->getPosition()) + " DDDRDRRDD");
+    Die *eaten = simulateMove(move);
     cout << "Die " << toString(eaten->getPosition()) << " of " << eaten->getOwner() << " was eaten." << endl;
     showBoard();
     adv->showDice();
@@ -636,16 +816,62 @@ void Board::testGrid()
     cout << exportState() << endl;
     StrategyTree *tree = new StrategyTree(nullptr);
     buildTree(0, tree, 3);
-    cout << tree->prettyPrint() << endl;
+    cout << tree->prettyPrint(0);
 }
 
-using namespace std;
+void Board::testManyTurns()
+{
+
+    srand(time(0));
+
+    Die *d;
+    for (int i = 0; i <= 2; i++)
+    {
+        d = new Die(rand() % 64, 0, rand() % 6 + 1, rand() % 6 + 1, rand() % 6 + 1);
+        this->addDice(d);
+    }
+
+    for (int i = 0; i < 2; i++)
+    {
+        d = new Die(rand() % 64, 1, rand() % 6 + 1, rand() % 6 + 1, rand() % 6 + 1);
+        this->addDice(d);
+    }
+    showBoard();
+    int player = 0;
+    chrono::_V2::steady_clock::time_point start;
+    chrono::_V2::steady_clock::time_point end;
+
+    while (me->nbDice() != 0 && adv->nbDice() != 0)
+    {
+        cout << "\nP" << to_string(player) << " plays" << endl;
+        start = chrono::steady_clock::now();
+
+        StrategyTree *tree = new StrategyTree(nullptr);
+        buildTree(player, tree, 2);
+        tree = tree->getBest();
+        simulateMove(tree->getMoves().back());
+        end = chrono::steady_clock::now();
+
+        cout << "Elapsed time in milliseconds: "
+             << chrono::duration_cast<chrono::milliseconds>(end - start).count()
+             << " ms" << endl;
+
+        player = player * -1 + 1;
+
+        showBoard();
+        sleep(1);
+    }
+    cout << "Finished! P0: " << me->nbDice() << ", P1: " << adv->nbDice() << "..." << endl;
+}
 
 int main()
 {
     // game loop
-    Board b;
-    b.testGrid();
+    // Board b;
+    // b.testGrid();
+
+    Board b2;
+    b2.testManyTurns();
     // while (1) {
     //     int diceCount;
     //     // cin >> diceCount; cin.ignore();
