@@ -249,6 +249,7 @@ public:
     StrategyTree *getBest();
     string getStrMoves();
     void setWinner(int w);
+    int getScore() { return score; };
     bool getForbiden() { return forbiden; };
     StrategyTree(StrategyTree *father);
     void doNotCome();
@@ -264,7 +265,7 @@ StrategyTree *StrategyTree::getBest()
 {
     int best = -1000000;
     string bestStr = "";
-    cout << "Looking into the " << sons.size() << " sons." << endl;
+    //cout << "Looking into the " << sons.size() << " sons." << endl;
     for (auto it : sons)
     {
         if (it.second->score > best)
@@ -292,23 +293,23 @@ void StrategyTree::setWinner(int w)
     // The idea is to set the score to this branch to -10000, garanteeing it won't be picked.
     // F1 LLU is the only son of that branch, because it's a win, so P1 doesn't need to bother with a score.
 
-    if (father != nullptr)
-    {
-        if (father->father != nullptr)
-        {
-            //cout << "For " << ge < tStrMoves() << "'s grandpa, score is " << father->father->score << endl;
-            if (w == 0)
-            {
-                father->incrementScore(-10000);
-                father->father->incrementScore(1);
-            }
-            else if (w == 1)
-            {
-                father->incrementScore(10000);
-                father->father->incrementScore(-1);
-            }
-        }
-    }
+    // if (father != nullptr)
+    // {
+    //     if (father->father != nullptr)
+    //     {
+    //         //cout << "For " << ge < tStrMoves() << "'s grandpa, score is " << father->father->score << endl;
+    //         if (w == 0)
+    //         {
+    //             father->incrementScore(-10000);
+    //             father->father->incrementScore(1);
+    //         }
+    //         else if (w == 1)
+    //         {
+    //             father->incrementScore(10000);
+    //             father->father->incrementScore(-1);
+    //         }
+    //     }
+    // }
 }
 
 void StrategyTree::setOnlySon(string move)
@@ -343,7 +344,7 @@ string StrategyTree::prettyPrint(int depth)
     string ret = "";
     if (moves.size() == 0)
     {
-        ret += "Origine";
+        ret += "Origin";
     }
     for (auto it : sons)
     {
@@ -361,7 +362,7 @@ string StrategyTree::prettyPrint(int depth)
         {
             ret += " (L) ";
         }
-        ret += " [" + to_string(score) + "] ";
+        ret += " [" + to_string(it.second->getScore()) + "] ";
         ret += it.second->prettyPrint(depth + 1);
     }
     return ret;
@@ -370,6 +371,7 @@ string StrategyTree::prettyPrint(int depth)
 StrategyTree::StrategyTree(StrategyTree *f)
 {
     father = f;
+    score = 0;
 }
 
 void StrategyTree::doNotCome()
@@ -390,7 +392,6 @@ private:
     Player *me;
     Player *adv;
     void getNeighbours(int position, int neighbours[4]);
-    void addDice(Die *d);
     void generateAllMoves(Die *d, int length, MoveTree *tree, vector<string> *moves);
     map<char, string> oppo;
     map<char, int> direc;
@@ -409,6 +410,7 @@ public:
         direc['L'] = LEFT;
         direc['R'] = RIGHT;
     }
+    void addDice(Die *d);
     Board(string state);
     string exportState();
     void showBoard();
@@ -484,6 +486,10 @@ void Board::buildTree(int player, StrategyTree *tree, int depth)
             if (over == -1)
             {
                 tree = tree->addSon(move);
+                if (eaten != nullptr)
+                {
+                    tree->incrementScore(eaten->getOwner() * 2 - 1);
+                }
                 buildTree(player * -1 + 1, tree, depth - 1);
             }
 
@@ -494,6 +500,7 @@ void Board::buildTree(int player, StrategyTree *tree, int depth)
             {
                 tree->forbid();
                 tree->setOnlySon(move);
+                tree->incrementScore(-1000);
                 revertMove(move, toString(d->getPosition()), eaten);
                 break;
             }
@@ -508,6 +515,7 @@ void Board::buildTree(int player, StrategyTree *tree, int depth)
                 // the player wins.
                 tree->forbid();
                 tree->setOnlySon(move);
+                tree->incrementScore(1000);
                 revertMove(move, toString(d->getPosition()), eaten);
                 break;
             }
@@ -715,9 +723,11 @@ void Board::getMoves(int player, map<int, vector<string>> *allMoves)
 void Board::populate()
 {
     Die *d;
-    d = new Die(11, 0, 5, 3, 1);
+    d = new Die(32, 0, 4, 3, 1);
     this->addDice(d);
-    d = new Die(61, 1, 3, 2, 1);
+    d = new Die(56, 1, 4, 2, 1);
+    this->addDice(d);
+    d = new Die(57, 1, 6, 3, 2);
     this->addDice(d);
 }
 
@@ -764,21 +774,13 @@ void Board::testGrid()
 {
     string pos;
     int num;
-    cout << "Testing grid...\n"
-         << endl;
-    for (int i = 0; i < 64; i++)
-    {
-        pos = toString(i);
-        num = toNumber(pos);
-        cout << "[" << i << "] " << pos << " : " << num << endl;
-    }
 
     cout << "\nTesting population..." << endl;
     populate();
     showBoard();
 
     cout << "\nTesting rotation..." << endl;
-    Die *d = this->board[11];
+    Die *d = this->board[32];
     cout << "\nMoving DOWN" << endl;
     rotation(d, DOWN);
     showBoard();
@@ -798,8 +800,8 @@ void Board::testGrid()
     cout << "Adv's dice" << endl;
     adv->showDice();
     cout << "Eating adv's dice" << endl;
-    d = this->board[11];
-    string move = toString(d->getPosition()) + " DDDDDDRR";
+    d = this->board[32];
+    string move = toString(d->getPosition()) + " DDRD";
     cout << "Doing move " << move << endl;
     Die *eaten = simulateMove(move);
     cout << "Die " << toString(eaten->getPosition()) << " of " << eaten->getOwner() << " was eaten." << endl;
@@ -815,8 +817,12 @@ void Board::testGrid()
     cout << "Current board export is:" << endl;
     cout << exportState() << endl;
     StrategyTree *tree = new StrategyTree(nullptr);
-    buildTree(0, tree, 3);
+    buildTree(0, tree, 2);
     cout << tree->prettyPrint(0);
+
+    cout << "\nTesting best move..." << endl;
+    StrategyTree *best = tree->getBest();
+    cout << "Best was " << best->getMoves().back() << " with " << best->getScore() << endl;
 }
 
 void Board::testManyTurns()
@@ -825,15 +831,15 @@ void Board::testManyTurns()
     srand(time(0));
 
     Die *d;
-    for (int i = 0; i <= 2; i++)
+    for (int i = 0; i < 8; i++)
     {
-        d = new Die(rand() % 64, 0, rand() % 6 + 1, rand() % 6 + 1, rand() % 6 + 1);
+        d = new Die(i, 0, rand() % 6 + 1, rand() % 6 + 1, rand() % 6 + 1);
         this->addDice(d);
     }
 
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 8; i++)
     {
-        d = new Die(rand() % 64, 1, rand() % 6 + 1, rand() % 6 + 1, rand() % 6 + 1);
+        d = new Die(63 - i, 1, rand() % 6 + 1, rand() % 6 + 1, rand() % 6 + 1);
         this->addDice(d);
     }
     showBoard();
@@ -847,10 +853,13 @@ void Board::testManyTurns()
         start = chrono::steady_clock::now();
 
         StrategyTree *tree = new StrategyTree(nullptr);
+
         buildTree(player, tree, 2);
         tree = tree->getBest();
         simulateMove(tree->getMoves().back());
         end = chrono::steady_clock::now();
+
+        // cout << tree->prettyPrint(0) << endl;
 
         cout << "Elapsed time in milliseconds: "
              << chrono::duration_cast<chrono::milliseconds>(end - start).count()
@@ -866,30 +875,44 @@ void Board::testManyTurns()
 
 int main()
 {
-    // game loop
-    // Board b;
-    // b.testGrid();
 
-    Board b2;
-    b2.testManyTurns();
-    // while (1) {
+    Board b;
+    //b.testGrid();
+    b.testManyTurns();
+
+    // Die *d;
+    // while (1)
+    // {
+    //     Board b;
     //     int diceCount;
-    //     // cin >> diceCount; cin.ignore();
-    //     // for (int i = 0; i < diceCount; i++) {
-    //     //     int owner;
-    //     //     string cell;
-    //     //     int top;
-    //     //     int front;
-    //     //     int bottom;
-    //     //     int back;
-    //     //     int left;
-    //     //     int right;
-    //     //     cin >> owner >> cell >> top >> front >> bottom >> back >> left >> right; cin.ignore();
-    //     // }
+    //     cin >> diceCount;
+    //     cin.ignore();
+    //     for (int i = 0; i < diceCount; i++)
+    //     {
+    //         int owner;
+    //         string cell;
+    //         int top;
+    //         int front;
+    //         int bottom;
+    //         int back;
+    //         int left;
+    //         int right;
+    //         cin >> owner >> cell >> top >> front >> bottom >> back >> left >> right;
+    //         cin.ignore();
+    //         d = new Die(b.toNumber(cell), owner, top, front, bottom, back, left, right);
+    //         b.addDice(d);
+    //     }
 
-    //     // Write an action using cout. DON'T FORGET THE "<< endl"
-    //     // To debug: cerr << "Debug messages..." << endl;
-
-    //     cout << "A1 URUL" << endl;
+    //     StrategyTree *tree = new StrategyTree(nullptr);
+    //     if (diceCount > 10)
+    //     {
+    //         b.buildTree(0, tree, 1);
+    //     }
+    //     else
+    //     {
+    //         b.buildTree(0, tree, 2);
+    //     }
+    //     tree = tree->getBest();
+    //     cout << tree->getMoves().back() << endl;
     // }
 }
