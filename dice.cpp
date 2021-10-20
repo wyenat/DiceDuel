@@ -274,7 +274,7 @@ StrategyTree *StrategyTree::getBest()
             bestStr = it.first;
         }
     }
-    cout << "Best move was " << bestStr << " with " << best << endl;
+    // cout << "Best move was " << bestStr << " with " << best << endl;
     return sons.at(bestStr);
 }
 
@@ -876,43 +876,44 @@ void Board::testManyTurns()
 int main()
 {
 
-    Board b;
+    // Board b;
     //b.testGrid();
-    b.testManyTurns();
+    //b.testManyTurns();
 
-    // Die *d;
-    // while (1)
-    // {
-    //     Board b;
-    //     int diceCount;
-    //     cin >> diceCount;
-    //     cin.ignore();
-    //     for (int i = 0; i < diceCount; i++)
-    //     {
-    //         int owner;
-    //         string cell;
-    //         int top;
-    //         int front;
-    //         int bottom;
-    //         int back;
-    //         int left;
-    //         int right;
-    //         cin >> owner >> cell >> top >> front >> bottom >> back >> left >> right;
-    //         cin.ignore();
-    //         d = new Die(b.toNumber(cell), owner, top, front, bottom, back, left, right);
-    //         b.addDice(d);
-    //     }
+    Die *d;
+    while (1)
+    {
+        Board b;
+        int diceCount;
+        cin >> diceCount;
+        cin.ignore();
+        for (int i = 0; i < diceCount; i++)
+        {
+            int owner;
+            string cell;
+            int top;
+            int front;
+            int bottom;
+            int back;
+            int left;
+            int right;
+            cin >> owner >> cell >> top >> front >> bottom >> back >> left >> right;
+            cin.ignore();
+            d = new Die(b.toNumber(cell), owner, top, front, bottom, back, left, right);
+            b.addDice(d);
+        }
 
-    //     StrategyTree *tree = new StrategyTree(nullptr);
-    //     if (diceCount > 10)
-    //     {
-    //         b.buildTree(0, tree, 1);
-    //     }
-    //     else
-    //     {
-    //         b.buildTree(0, tree, 2);
-    //     }
-    //     tree = tree->getBest();
-    //     cout << tree->getMoves().back() << endl;
-    // }
+        // For now, disappointing solution : ignore the tree completely...
+        StrategyTree *tree = new StrategyTree(nullptr);
+        if (diceCount > 2)
+        {
+            b.buildTree(0, tree, 1);
+        }
+        else
+        {
+            b.buildTree(0, tree, 2);
+        }
+        tree = tree->getBest();
+        cout << tree->getMoves().back() << endl;
+    }
 }
